@@ -65,7 +65,7 @@ The Modern Media Player is an elegant frameless media player designed with PyQt5
 
 You can also download a pre-built executable for Windows. The executable provides a convenient way to run the media player without installing any dependencies or setting up a development environment.
 
-[Download Windows Executable](link/to/executable)
+[Download Windows Executable](executables)
 
 ## Contributing
 
