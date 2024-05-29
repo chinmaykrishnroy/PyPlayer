@@ -1,1 +1,1 @@
-decompress it using any archieving tool to generate .exe file.
+uncompress it using any archieving tool to generate .exe file.
