@@ -2,6 +2,13 @@
 
 The Modern Media Player is an elegant frameless media player designed with PyQt5 in Python. It offers a sleek, modern interface with dynamic resizing for seamless audio and video playback. Featuring drag-and-drop functionality, users can effortlessly add files to the playlist. Additionally, it includes a pre-built executable for Windows, ensuring easy installation and usage. This player provides all essential media player functionalities while maintaining a contemporary aesthetic.
 
+## Images
+![Screenshot (95)](https://github.com/chinmaykrishnroy/pyPlayer/assets/65699140/5fe68ec8-976d-465f-a164-8c3e30e0b145)
+![Screenshot (83)](https://github.com/chinmaykrishnroy/pyPlayer/assets/65699140/e839cbbf-0208-4a46-9263-8d31ad4af84e)
+![Screenshot (93)](https://github.com/chinmaykrishnroy/pyPlayer/assets/65699140/f9833e73-a201-4e67-8de7-673573f78e67)
+![Screenshot (94)](https://github.com/chinmaykrishnroy/pyPlayer/assets/65699140/5bcf10e5-edde-4855-9016-950c168473f7)
+![Screenshot (80)](https://github.com/chinmaykrishnroy/pyPlayer/assets/65699140/761f8ab2-c89d-4ce0-b5a3-b5caf7af63a6)
+
 ## Features
 
 - **Play Various Formats**: Supports audio and video files such as MP3, WAV, MP4, AVI, MKV, AAC, etc.
