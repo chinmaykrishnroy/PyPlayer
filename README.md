@@ -22,7 +22,7 @@ The Modern Media Player is an elegant frameless media player designed with PyQt5
 
 1. Clone this repository:
     ```bash
-    git clone https://github.com/yourusername/modern-media-player.git
+    git clone https://github.com/yourusername/PyPlayer.git
     ```
 2. Install the required dependencies:
     ```bash
