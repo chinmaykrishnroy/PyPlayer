@@ -32,6 +32,9 @@ class Ui_MainWindow(object):
         self.current_volume = self.default_volume
         self.player_locked = False
         self.mediaPlay.setPlaylist(self.playlist)
+        self.timer = QtCore.QTimer(MainWindow)
+        self.timer.timeout.connect(self.on_timer)
+        self.timer.start(500)
         self.resetLabel = QtCore.QTimer()
         self.resetLabel.setSingleShot(True)
         self.resetLabel.timeout.connect(self.reset_media_title)
@@ -167,6 +170,12 @@ class Ui_MainWindow(object):
             "QSlider::handle:horizontal {\n"
             "    width: 6px;\n"
             "    background: #22272d;\n"
+            "    border-radius: 3px;\n"
+            "}\n"
+            "\n"
+            "QSlider::handle:horizontal:hover {\n"
+            "    width: 6px;\n"
+            "    background: #ffffff;\n"
             "    border-radius: 3px;\n"
             "}\n"
             "\n"
@@ -582,7 +591,7 @@ class Ui_MainWindow(object):
 
     def handle_playback_speed(self):
         self.playback_spped_mode+=1
-        if self.playback_spped_mode > 5:
+        if self.playback_spped_mode > 6:
             self.playback_spped_mode = 0
         if self.playback_spped_mode==0:
             speed = 1
@@ -601,6 +610,9 @@ class Ui_MainWindow(object):
             self.mediaPlay.setPlaybackRate(speed)
         elif self.playback_spped_mode==5:
             speed = 0.5
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==6:
+            speed = 0.75
             self.mediaPlay.setPlaybackRate(speed)
 
     def handle_media_previous(self):
@@ -881,6 +893,9 @@ class Ui_MainWindow(object):
         msg_box.setInformativeText(self.mediaPlay.errorString())
         msg_box.setStandardButtons(QtWidgets.QMessageBox.Close)
         msg_box.exec_()
+
+    def on_timer(self):
+        print("Do not freeze UI!")
 
 import res_rc
 
