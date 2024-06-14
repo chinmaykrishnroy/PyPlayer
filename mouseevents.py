@@ -31,7 +31,7 @@ class CustomMainWindow(QtWidgets.QMainWindow):
             self.drag_position = event.globalPos() - self.pos()
 
     def mouseMoveEvent(self, event):
-        if self.resizing:
+        if self.resizing and not self.ui.frame.isHidden():
             delta = event.globalPos() - self.resize_position
             new_width = max(self.width() + delta.x(), 100)
             new_height = max(self.height() + delta.y(), 100)
