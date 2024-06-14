@@ -7,14 +7,6 @@ from PyQt5.QtCore import Qt
 from PyQt5 import sip
 
 
-def res_path(rel_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, rel_path)
-
-
 class CustomMainWindow(QtWidgets.QMainWindow):
     def __init__(self, ui):
         super().__init__()
@@ -23,24 +15,11 @@ class CustomMainWindow(QtWidgets.QMainWindow):
         self.dragging = False
         self.resize_position = None
         self.drag_position = None
-        self.click_count = 0
-        self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(500)
-        self.timer.timeout.connect(self.reset_click_count)
         self.fullscreen = False
-
-    def reset_click_count(self):
-        self.click_count = 0
-        self.timer.stop()
+        self.mouseDoubleClickEvent = self.toggle_fullscreen
 
     def mousePressEvent(self, event):
-        self.click_count += 1
-        if self.click_count == 3:
-            self.toggle_fullscreen()
-            self.reset_click_count()
-        else:
-            self.timer.start()
-        edge_margin = 4
+        edge_margin = 8
         rect = self.rect()
         if (
             rect.topLeft().x() + edge_margin >= event.x()
@@ -57,7 +36,7 @@ class CustomMainWindow(QtWidgets.QMainWindow):
             self.drag_position = event.globalPos() - self.pos()
 
     def mouseMoveEvent(self, event):
-        if self.resizing:
+        if self.resizing and not self.ui.frame.isHidden():
             delta = event.globalPos() - self.resize_position
             new_width = max(self.width() + delta.x(), 100)
             new_height = max(self.height() + delta.y(), 100)
@@ -73,7 +52,7 @@ class CustomMainWindow(QtWidgets.QMainWindow):
         if not self.fullscreen:
             self.setCursor(Qt.ArrowCursor)
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self, event):
         if self.fullscreen:
             self.showNormal()
             self.ui.Player.show()
@@ -87,21 +66,47 @@ class CustomMainWindow(QtWidgets.QMainWindow):
         self.fullscreen = not self.fullscreen
 
 
+
+class SeekSlider(QtWidgets.QSlider):
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            value = self.minimum() + ((self.maximum() - self.minimum()) * event.x()) / self.width()
+            self.setValue(int(value))
+            self.sliderMoved.emit(int(value))
+        super().mousePressEvent(event)
+
+
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(790, 496)
-        MainWindow.setWindowIcon(QtGui.QIcon(res_path("icons/player.png")))
+        MainWindow.setWindowIcon(QtGui.QIcon(":/icons/icons/player.png"))
         MainWindow.setAcceptDrops(True)
         MainWindow.dragEnterEvent = self.dragEnterEvent
         MainWindow.dropEvent = self.dropEvent
+        MainWindow.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.default_volume = 60
+        self.media_duration = 0
         self.media_files = []
         self.mode_random = False
+        self.playback_spped_mode = 0
         self.initial_size = MainWindow.size()
         self.audio_formats = [".mp3", ".wav", ".aac", ".pcm"]
         self.video_formats = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".3gp"]
-        MainWindow.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        self.mediaPlay = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.mediaPlay.setVolume(self.default_volume)
+        self.playlist = QMediaPlaylist()
+        self.current_media_file = None
+        self.current_volume = self.default_volume
+        self.player_locked = False
+        self.mediaPlay.setPlaylist(self.playlist)
+        self.timer = QtCore.QTimer(MainWindow)
+        self.timer.timeout.connect(self.on_timer)
+        self.timer.start(500)
         self.resetLabel = QtCore.QTimer()
         self.resetLabel.setSingleShot(True)
         self.resetLabel.timeout.connect(self.reset_media_title)
@@ -126,13 +131,6 @@ class Ui_MainWindow(object):
             20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
         )
         self.verticalLayout.addItem(spacerItem)
-        self.mediaPlay = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.mediaPlay.setVolume(self.default_volume)
-        self.playlist = QMediaPlaylist()
-        self.current_media_file = None
-        self.current_volume = self.default_volume
-        self.player_locked = False
-        self.mediaPlay.setPlaylist(self.playlist)
         self.frame = QtWidgets.QFrame(self.VideoPlayer)
         self.frame.setObjectName("frame")
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout(self.frame)
@@ -188,6 +186,9 @@ class Ui_MainWindow(object):
         self.MediaController.setMinimumSize(QtCore.QSize(480, 50))
         self.MediaController.setMaximumSize(QtCore.QSize(680, 56))
         self.MediaController.setStyleSheet(
+            "#MediaController{\n"
+            "    border: 1px solid #000000;\n"
+            "}\n"
             "QFrame {\n"
             "    background-color: #111111;\n"
             '    font-family: "Helvetica", sans-serif;\n'
@@ -222,7 +223,7 @@ class Ui_MainWindow(object):
         self.playbackTimeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.playbackTimeLabel.setObjectName("playbackTimeLabel")
         self.mediaProgressBarHorizontalLayout.addWidget(self.playbackTimeLabel)
-        self.playbackProgress = QtWidgets.QSlider(self.MediaProgressBar)
+        self.playbackProgress = SeekSlider(Qt.Horizontal, parent=self.MediaProgressBar)
         self.playbackProgress.setMinimumSize(QtCore.QSize(360, 12))
         self.playbackProgress.setMaximumSize(QtCore.QSize(16777215, 12))
         self.playbackProgress.setStyleSheet(
@@ -241,6 +242,12 @@ class Ui_MainWindow(object):
             "QSlider::handle:horizontal {\n"
             "    width: 6px;\n"
             "    background: #22272d;\n"
+            "    border-radius: 3px;\n"
+            "}\n"
+            "\n"
+            "QSlider::handle:horizontal:hover {\n"
+            "    width: 6px;\n"
+            "    background: #ffffff;\n"
             "    border-radius: 3px;\n"
             "}\n"
             "\n"
@@ -308,7 +315,7 @@ class Ui_MainWindow(object):
         self.fileOpenerButton.setText("")
         icon = QtGui.QIcon()
         icon.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-folder-open.png")),
+            QtGui.QPixmap(":/icons/icons/cil-folder-open.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -321,7 +328,7 @@ class Ui_MainWindow(object):
         self.playerLockButton.setText("")
         icon1 = QtGui.QIcon()
         icon1.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-lock-unlocked.png")),
+            QtGui.QPixmap(":/icons/icons/cil-lock-unlocked.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -353,7 +360,7 @@ class Ui_MainWindow(object):
         self.mediaPreviousButton.setText("")
         icon2 = QtGui.QIcon()
         icon2.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-media-step-backward.png")),
+            QtGui.QPixmap(":/icons/icons/cil-media-step-backward.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -367,7 +374,7 @@ class Ui_MainWindow(object):
         self.mediaPlayPauseButton.setText("")
         icon3 = QtGui.QIcon()
         icon3.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-media-play.png")),
+            QtGui.QPixmap(":/icons/icons/cil-media-play.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -381,7 +388,7 @@ class Ui_MainWindow(object):
         self.mediaNextButton.setText("")
         icon4 = QtGui.QIcon()
         icon4.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-media-step-forward.png")),
+            QtGui.QPixmap(":/icons/icons/cil-media-step-forward.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -399,7 +406,7 @@ class Ui_MainWindow(object):
         self.mediaRepeatButton.setText("")
         icon5 = QtGui.QIcon()
         icon5.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-loop.png")),
+            QtGui.QPixmap(":/icons/icons/cil-loop.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -413,7 +420,7 @@ class Ui_MainWindow(object):
         self.mediaShuffleButton.setText("")
         icon6 = QtGui.QIcon()
         icon6.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-infinity.png")),
+            QtGui.QPixmap(":/icons/icons/cil-infinity.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -426,7 +433,7 @@ class Ui_MainWindow(object):
         self.mediaAudioTrack.setText("")
         icon7 = QtGui.QIcon()
         icon7.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-notes.png")),
+            QtGui.QPixmap(":/icons/icons/cil-speedometer.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -444,14 +451,14 @@ class Ui_MainWindow(object):
         self.mediaMuteButton.setText("")
         icon8 = QtGui.QIcon()
         icon8.addPixmap(
-            QtGui.QPixmap(res_path("icons/cil-volume-high.png")),
+            QtGui.QPixmap(":/icons/icons/cil-volume-high.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
         self.mediaMuteButton.setIcon(icon8)
         self.mediaMuteButton.setObjectName("mediaMuteButton")
         self.mediaButtonsHorizontalLayout.addWidget(self.mediaMuteButton)
-        self.volumeSlider = QtWidgets.QSlider(self.MediaButtons)
+        self.volumeSlider = SeekSlider(Qt.Horizontal, parent=self.MediaButtons)
         self.volumeSlider.setMinimumSize(QtCore.QSize(72, 6))
         self.volumeSlider.setStyleSheet(
             "QSlider {\n"
@@ -513,7 +520,7 @@ class Ui_MainWindow(object):
         self.minimizeButton.setText("")
         icon8 = QtGui.QIcon()
         icon8.addPixmap(
-            QtGui.QPixmap(res_path("icons/icon_minimize.png")),
+            QtGui.QPixmap(":/icons/icons/icon_minimize.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -538,7 +545,7 @@ class Ui_MainWindow(object):
         self.closeButton.setText("")
         icon9 = QtGui.QIcon()
         icon9.addPixmap(
-            QtGui.QPixmap(res_path("icons/icon_close.png")),
+            QtGui.QPixmap(":/icons/icons/icon_close.png"),
             QtGui.QIcon.Normal,
             QtGui.QIcon.Off,
         )
@@ -594,6 +601,7 @@ class Ui_MainWindow(object):
         self.mediaPlay.positionChanged.connect(self.update_position)
         self.mediaPlay.durationChanged.connect(self.update_duration)
         self.mediaPlay.mediaStatusChanged.connect(self.handle_media_state_changed)
+        self.mediaAudioTrack.clicked.connect(self.handle_playback_speed)
         MainWindow.keyPressEvent = self.keyPressEvent
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -605,7 +613,7 @@ class Ui_MainWindow(object):
         self.playbackTimeLabel.setText(_translate("MainWindow", "--:--"))
         self.mediaLenghtLabel.setText(_translate("MainWindow", "--:--"))
         self.mediaTitle.setText(
-            _translate("MainWindow", "PyPlayer: created by @chinmaykrishnroy")
+            _translate("MainWindow", "PyPlayer: A Media-Player in Python")
         )
 
     def keyPressEvent(self, event):
@@ -653,6 +661,32 @@ class Ui_MainWindow(object):
             elif event.key() == Qt.Key_Right:
                 self.seek_playback_by(10)
 
+    def handle_playback_speed(self):
+        self.playback_spped_mode+=1
+        if self.playback_spped_mode > 6:
+            self.playback_spped_mode = 0
+        if self.playback_spped_mode==0:
+            speed = 1
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==1:
+            speed = 1.25
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==2:
+            speed = 1.5
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==3:
+            speed = 1.75
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==4:
+            speed = 2
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==5:
+            speed = 0.5
+            self.mediaPlay.setPlaybackRate(speed)
+        elif self.playback_spped_mode==6:
+            speed = 0.75
+            self.mediaPlay.setPlaybackRate(speed)
+
     def handle_media_previous(self):
         print("Media previous button clicked")
         if (
@@ -672,12 +706,12 @@ class Ui_MainWindow(object):
             if self.mediaPlay.state() == QMediaPlayer.PlayingState:
                 self.mediaPlay.pause()
                 self.mediaPlayPauseButton.setIcon(
-                    QtGui.QIcon(res_path("icons/cil-media-play.png"))
+                    QtGui.QIcon(":/icons/icons/cil-media-play.png")
                 )
             else:
                 self.mediaPlay.play()
                 self.mediaPlayPauseButton.setIcon(
-                    QtGui.QIcon(res_path("icons/cil-media-pause.png"))
+                    QtGui.QIcon(":/icons/icons/cil-media-pause.png")
                 )
         else:
             self.mediaTitle.setText("Empty Playlist!")
@@ -706,7 +740,7 @@ class Ui_MainWindow(object):
                         if self.mediaPlay.state() == QMediaPlayer.PlayingState:
                             self.mediaPlay.pause()
                             self.mediaPlayPauseButton.setIcon(
-                                QtGui.QIcon("icons/cil-media-play.png")
+                                QtGui.QIcon(":/icons/icons/cil-media-play.png")
                             )
                             self.mediaTitle.setText(f"End of Playlist!")
                             self.resetLabel.start(2000)
@@ -717,20 +751,20 @@ class Ui_MainWindow(object):
             self.mediaPlay.setVolume(self.current_volume)
             self.volumeSlider.setEnabled(True)
             self.mediaMuteButton.setIcon(
-                QtGui.QIcon(res_path("icons/cil-volume-high.png"))
+                QtGui.QIcon(":/icons/icons/cil-volume-high.png")
             )
         else:
             self.current_volume = self.mediaPlay.volume()
             self.volumeSlider.setEnabled(False)
             self.mediaPlay.setVolume(0)
             self.mediaMuteButton.setIcon(
-                QtGui.QIcon(res_path("icons/cil-volume-off.png"))
+                QtGui.QIcon(":/icons/icons/cil-volume-off.png")
             )
 
     def handle_media_state_changed(self, state):
         if state == QMediaPlayer.EndOfMedia:
             if self.playlist.playbackMode() == QMediaPlaylist.CurrentItemInLoop:
-                self.mediaPlay.play()
+                self.mediaPlay.pause()
                 self.mediaPlay.setPosition(0)
                 self.mediaPlay.play()
                 return
@@ -740,13 +774,13 @@ class Ui_MainWindow(object):
         print("Media repeat button clicked")
         if self.playlist.playbackMode() == QMediaPlaylist.Sequential:
             self.playlist.setPlaybackMode(QMediaPlaylist.Loop)
-            self.mediaRepeatButton.setIcon(QtGui.QIcon("icons/cil-loop-circular.png"))
+            self.mediaRepeatButton.setIcon(QtGui.QIcon(":/icons/icons/cil-loop-circular.png"))
         elif self.playlist.playbackMode() == QMediaPlaylist.Loop:
             self.playlist.setPlaybackMode(QMediaPlaylist.CurrentItemInLoop)
-            self.mediaRepeatButton.setIcon(QtGui.QIcon("icons/cil-loop-1.png"))
+            self.mediaRepeatButton.setIcon(QtGui.QIcon(":/icons/icons/cil-loop-1.png"))
         else:
             self.playlist.setPlaybackMode(QMediaPlaylist.Sequential)
-            self.mediaRepeatButton.setIcon(QtGui.QIcon("icons/cil-loop.png"))
+            self.mediaRepeatButton.setIcon(QtGui.QIcon(":/icons/icons/cil-loop.png"))
 
     def handle_media_shuffle(self):
         print("Media shuffle button clicked")
@@ -761,7 +795,7 @@ class Ui_MainWindow(object):
             self.playlist.setPlaybackMode(
                 QMediaPlaylist.Sequential
             )
-            self.mediaShuffleButton.setIcon(QtGui.QIcon("icons/cil-layers.png"))
+            self.mediaShuffleButton.setIcon(QtGui.QIcon(":/icons/icons/cil-layers.png"))
         else:
             self.media_files = self.original_media_files
             self.playlist.clear()
@@ -769,19 +803,19 @@ class Ui_MainWindow(object):
                 self.playlist.addMedia(
                     QMediaContent(QtCore.QUrl.fromLocalFile(file_path))
                 )
-            self.mediaShuffleButton.setIcon(QtGui.QIcon("icons/cil-infinity.png"))
+            self.mediaShuffleButton.setIcon(QtGui.QIcon(":/icons/icons/cil-infinity.png"))
         self.mode_random = not self.mode_random
 
     def handle_player_lock(self):
         print("Player lock button clicked")
-        self.player_locked = not self.player_locked
+
         if self.player_locked:
             self.playerLockButton.setIcon(
-                QtGui.QIcon(res_path("icons/cil-lock-unlocked.png"))
+                QtGui.QIcon(":/icons/icons/cil-lock-unlocked.png")
             )
         else:
             self.playerLockButton.setIcon(
-                QtGui.QIcon(res_path("icons/cil-lock-locked.png"))
+                QtGui.QIcon(":/icons/icons/cil-lock-locked.png")
             )
         self.volumeSlider.setEnabled(not self.player_locked)
         self.playbackProgress.setEnabled(not self.player_locked)
@@ -790,9 +824,10 @@ class Ui_MainWindow(object):
         self.mediaNextButton.setEnabled(not self.player_locked)
         self.mediaRepeatButton.setEnabled(not self.player_locked)
         self.mediaShuffleButton.setEnabled(not self.player_locked)
-        self.volumeSlider.setEnabled(not self.player_locked)
+        self.mediaMuteButton.setEnabled(not self.player_locked)
         self.fileOpenerButton.setEnabled(not self.player_locked)
         self.fileOpenerButton.setEnabled(not self.player_locked)
+        self.player_locked = not self.player_locked
 
     def handle_volume_slider(self, value):
         self.mediaPlay.setVolume(value)
@@ -807,15 +842,14 @@ class Ui_MainWindow(object):
 
     def update_position(self, position):
         self.playbackProgress.setValue(int(position / 1000))
-        self.update_time_label(position)
+        self.playbackTimeLabel.setText(self.format_time(position))
+        self.mediaLenghtLabel.setText(self.format_time(self.media_duration - position))
+
 
     def update_duration(self, duration):
+        self.media_duration = duration
         self.playbackProgress.setRange(0, int(duration / 1000))
-        self.mediaLenghtLabel.setText(self.format_time(duration))
-        self.update_time_label(0)
-
-    def update_time_label(self, position):
-        self.playbackTimeLabel.setText(self.format_time(position))
+        self.playbackTimeLabel.setText(self.format_time(0))
 
     def seek_playback_by(self, seconds):
         current_position = self.mediaPlay.position()
@@ -847,7 +881,6 @@ class Ui_MainWindow(object):
         print("File opener button clicked")
         directory = QtWidgets.QFileDialog.getExistingDirectory(None, "Select Folder")
         if directory:
-            self.media_files = []
             supported_formats = self.audio_formats + self.video_formats
             for root, dirs, files in os.walk(directory):
                 for file in files:
@@ -869,7 +902,7 @@ class Ui_MainWindow(object):
             print(f"Failed to set media source: {file_path}")
         else:
             self.mediaPlayPauseButton.setIcon(
-                QtGui.QIcon(res_path("icons/cil-media-pause.png"))
+                QtGui.QIcon(":/icons/icons/cil-media-pause.png")
             )
             self.mediaPlay.error.connect(self.handle_media_error)
         if MainWindow.size().height() > 100:
@@ -890,7 +923,7 @@ class Ui_MainWindow(object):
         self.videoTitleLabel.setText(os.path.basename(file_path))
         self.mediaPlay.play()
         self.mediaPlayPauseButton.setIcon(
-            QtGui.QIcon(res_path("icons/cil-media-pause.png"))
+            QtGui.QIcon(":/icons/icons/cil-media-pause.png")
         )
 
     def dragEnterEvent(self, event):
@@ -913,7 +946,7 @@ class Ui_MainWindow(object):
         if new_files_added:
             self.mediaTitle.setText(f"Added {os.path.basename(file_path)[:25]}...")
             self.resetLabel.start(2000)
-        if not self.current_media_file and self.media_files:
+        if self.current_media_file not in self.media_files:
             self.play_media_file(self.media_files[0])
             self.current_media_file = self.media_files[0]
         if not self.media_files:
@@ -933,6 +966,12 @@ class Ui_MainWindow(object):
         msg_box.setStandardButtons(QtWidgets.QMessageBox.Close)
         msg_box.exec_()
 
+    def on_timer(self):
+        print("Do not freeze UI!")
+
+
+
+import res_rc
 
 if __name__ == "__main__":
     import sys
