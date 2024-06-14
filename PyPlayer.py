@@ -755,6 +755,7 @@ class Ui_MainWindow(object):
         self.mediaMuteButton.setEnabled(not self.player_locked)
         self.fileOpenerButton.setEnabled(not self.player_locked)
         self.fileOpenerButton.setEnabled(not self.player_locked)
+        self.mediaAudioTrack.setEnabled(not self.player_locked)
         self.player_locked = not self.player_locked
 
     def handle_volume_slider(self, value):
