@@ -23,8 +23,8 @@ class Ui_MainWindow(object):
         self.mode_random = False
         self.playback_spped_mode = 0
         self.initial_size = MainWindow.size()
-        self.audio_formats = [".mp3", ".wav", ".aac", ".pcm"]
-        self.video_formats = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".3gp"]
+        self.audio_formats = [".mp3", ".wav", ".aac", ".pcm", ".m4a"]
+        self.video_formats = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".3gp", ".webm"]
         self.mediaPlay = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         self.mediaPlay.setVolume(self.default_volume)
         self.playlist = QMediaPlaylist()
